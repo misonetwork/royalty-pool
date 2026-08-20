@@ -1,0 +1,9 @@
+[package]
+name = "royalty_pool"
+edition = "2024"
+license = "Apache 2.0"
+authors = ["Miso Labs, Inc. (build@miso.network)"]
+
+[dependencies]
+hikida = { git = "https://github.com/unconfirmedlabs/hikida.git", rev = "e88c6fa88348bc2764823cf3666d7ca5e08b2f4f" }
+
