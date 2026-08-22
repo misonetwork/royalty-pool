@@ -160,7 +160,7 @@ public fun new<Share, Currency>(parent: &mut UID): RoyaltyPool<Share, Currency> 
     };
 
     emit(RoyaltyPoolCreatedEvent<Share, Currency> {
-        pool_id: pool.id(),
+        pool_id: object::id(&pool),
         parent_id,
     });
 
@@ -194,7 +194,7 @@ public fun deposit<Share, Currency>(
     self.balance.join(balance);
 
     emit(RoyaltyDepositedEvent<Share, Currency> {
-        pool_id: self.id(),
+        pool_id: object::id(self),
         value,
     });
 }
@@ -232,8 +232,8 @@ public fun register_stake<Share, Currency>(
     let currency = type_name::with_defining_ids<Currency>();
     assert!(!stake.has_registration(&currency), EAlreadyRegistered);
 
-    let pool_id = self.id();
-    let stake_id = stake.id();
+    let pool_id = object::id(self);
+    let stake_id = object::id(stake);
     let staked_amount = stake.value();
     let cumulative = self.cumulative_reward_per_share;
 
@@ -260,8 +260,8 @@ public fun unregister_stake<Share, Currency>(
     let currency = type_name::with_defining_ids<Currency>();
     assert!(stake.has_registration(&currency), ENotRegistered);
 
-    let pool_id = self.id();
-    let stake_id = stake.id();
+    let pool_id = object::id(self);
+    let stake_id = object::id(stake);
     let staked_amount = stake.value();
     let cumulative = self.cumulative_reward_per_share;
 
@@ -292,8 +292,8 @@ public fun claim_rewards<Share, Currency>(
     let currency = type_name::with_defining_ids<Currency>();
     assert!(stake.has_registration(&currency), ENotRegistered);
 
-    let pool_id = self.id();
-    let stake_id = stake.id();
+    let pool_id = object::id(self);
+    let stake_id = object::id(stake);
     let staked_amount = stake.value();
     let cumulative = self.cumulative_reward_per_share;
 
@@ -334,7 +334,7 @@ public fun pending_rewards<Share, Currency>(
     };
 
     let registration = stake.get_registration(&currency);
-    if (stake::registration_pool_id(registration) != self.id()) {
+    if (stake::registration_pool_id(registration) != object::id(self)) {
         return 0
     };
 
@@ -343,10 +343,6 @@ public fun pending_rewards<Share, Currency>(
         stake::registration_last_claim_index(registration),
         self.cumulative_reward_per_share,
     )
-}
-
-public fun id<Share, Currency>(self: &RoyaltyPool<Share, Currency>): ID {
-    self.id.to_inner()
 }
 
 public fun balance<Share, Currency>(self: &RoyaltyPool<Share, Currency>): &Balance<Currency> {

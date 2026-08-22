@@ -44,7 +44,7 @@ fun create_pool(scenario: &mut Scenario): ID {
     scenario.next_tx(ALICE);
     let mut parent = object::new(scenario.ctx());
     let pool = pool::new<TEST_SHARE, TEST_CURRENCY>(&mut parent);
-    let pool_id = pool.id();
+    let pool_id = object::id(&pool);
     pool.share();
     destroy(parent);
     pool_id
@@ -414,8 +414,8 @@ fun test_two_currencies_same_stake() {
     let mut parent = object::new(scenario.ctx());
     let pool_a = pool::new<TEST_SHARE, TEST_CURRENCY>(&mut parent);
     let pool_b = pool::new<TEST_SHARE, OTHER_CURRENCY>(&mut parent);
-    let id_a = pool_a.id();
-    let id_b = pool_b.id();
+    let id_a = object::id(&pool_a);
+    let id_b = object::id(&pool_b);
     pool_a.share();
     pool_b.share();
     destroy(parent);
@@ -507,7 +507,7 @@ fun test_derived_address_matches_pool_address() {
     let parent_id = parent.to_inner();
     let pool = pool::new<TEST_SHARE, TEST_CURRENCY>(&mut parent);
     let derived = pool::derived_address<TEST_SHARE, TEST_CURRENCY>(parent_id);
-    assert!(derived == object::id_to_address(&pool.id()));
+    assert!(derived == object::id_to_address(&object::id(&pool)));
     pool.assert_derived_from(parent_id);
     pool.share();
     destroy(parent);
@@ -754,7 +754,7 @@ fun test_view_accessors_track_registration_lifecycle() {
 
     scenario.next_tx(ALICE);
     let mut s = new_stake(&mut scenario, 100);
-    let stake_id = s.id();
+    let stake_id = object::id(&s);
     assert!(s.balance().value() == 100);
 
     let currency = type_name::with_defining_ids<TEST_CURRENCY>();
@@ -790,7 +790,7 @@ fun test_view_accessors_track_registration_lifecycle() {
     );
 
     pool_a.unregister_stake(&mut s);
-    assert!(s.id() == stake_id);
+    assert!(object::id(&s) == stake_id);
     test_scenario::return_shared(pool_a);
     test_scenario::return_shared(pool_b);
 
@@ -847,8 +847,8 @@ fun create_two_pools_same_currency(scenario: &mut Scenario): (ID, ID) {
     let mut parent_b = object::new(scenario.ctx());
     let pool_a = pool::new<TEST_SHARE, TEST_CURRENCY>(&mut parent_a);
     let pool_b = pool::new<TEST_SHARE, TEST_CURRENCY>(&mut parent_b);
-    let id_a = pool_a.id();
-    let id_b = pool_b.id();
+    let id_a = object::id(&pool_a);
+    let id_b = object::id(&pool_b);
     pool_a.share();
     pool_b.share();
     destroy(parent_a);
@@ -919,7 +919,7 @@ fun test_full_lifecycle_emits_expected_events_with_exact_payloads() {
     let mut parent = object::new(scenario.ctx());
     let parent_id = parent.to_inner();
     let pool = pool::new<TEST_SHARE, TEST_CURRENCY>(&mut parent);
-    let pool_id = pool.id();
+    let pool_id = object::id(&pool);
     let created = event::events_by_type<RoyaltyPoolCreatedEvent<TEST_SHARE, TEST_CURRENCY>>();
     assert_eq!(created.length(), 1);
     let (event_pool_id, event_parent_id) = pool::created_event_fields(&created[0]);
@@ -931,7 +931,7 @@ fun test_full_lifecycle_emits_expected_events_with_exact_payloads() {
     // --- Tx 2: stake creation ---
     scenario.next_tx(ALICE);
     let mut s = stake::new(balance::create_for_testing<TEST_SHARE>(100), scenario.ctx());
-    let stake_id = s.id();
+    let stake_id = object::id(&s);
     let stake_created = event::events_by_type<StakeCreatedEvent<TEST_SHARE>>();
     assert_eq!(stake_created.length(), 1);
     let (event_stake_id, event_amount) = stake::created_event_fields(&stake_created[0]);

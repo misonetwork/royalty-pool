@@ -69,7 +69,7 @@ public fun new<Share>(balance: Balance<Share>, ctx: &mut TxContext): Stake<Share
     };
 
     emit(StakeCreatedEvent<Share> {
-        stake_id: stake.id(),
+        stake_id: object::id(&stake),
         amount: stake.value(),
     });
 
@@ -95,10 +95,6 @@ public fun destroy<Share>(stake: Stake<Share>): Balance<Share> {
 }
 
 // === View Functions ===
-
-public fun id<Share>(self: &Stake<Share>): ID {
-    self.id.to_inner()
-}
 
 public fun balance<Share>(self: &Stake<Share>): &Balance<Share> {
     &self.balance
