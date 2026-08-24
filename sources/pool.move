@@ -27,7 +27,7 @@
 ///   address is a pure function of `(parent_id, Share, Currency)`, so senders
 ///   need the pool neither shared nor even created yet; a later `new` claims
 ///   exactly that ID — and can only be the correctly-typed, shared pool.
-///   `receive_and_deposit` and `redeem_and_deposit` fold
+///   `receive_and_deposit` and `sweep_and_deposit` fold
 ///   such funds into the accumulator, permissionlessly: anyone can complete
 ///   the delivery. Both run through `deposit`, which aborts while no shares
 ///   are staked — and the pool has no other withdrawal path — so funds at
@@ -63,6 +63,7 @@ module royalty_pool::pool;
 use hikida::hikida;
 use royalty_pool::stake::{Self, Stake};
 use std::{type_name, u128};
+use sui::accumulator::AccumulatorRoot;
 use sui::balance::{Self, Balance};
 use sui::coin::Coin;
 use sui::derived_object::{claim, derive_address};
@@ -78,6 +79,7 @@ const ENotRegistered: u64 = 3;
 const EPoolIdMismatch: u64 = 4;
 const ELastClaimIndexMismatch: u64 = 5;
 const EInvalidValue: u64 = 6;
+const ENoSettledFunds: u64 = 7;
 
 // === Constants ===
 
@@ -210,13 +212,20 @@ public fun receive_and_deposit<Share, Currency>(
     self.deposit(balance);
 }
 
-/// Redeem `value` base units from the pool's funds-accumulator and fold
-/// them into the accumulator. Recovery path for funds delivered via Sui's
-/// `send_funds` mechanism rather than via the canonical extension path.
-public fun redeem_and_deposit<Share, Currency>(
+/// Redeem the pool's funds settled at the start of the current consensus
+/// commit and fold them into the royalty accumulator. Recovery path for funds
+/// delivered via Sui's `send_funds` mechanism rather than via the canonical
+/// extension path.
+///
+/// The framework returns at most `u64::MAX` per call. Any excess, along with
+/// funds sent later in the current commit, remains for a subsequent sweep.
+/// Aborts with `ENoSettledFunds` when no positive amount is currently eligible.
+public fun sweep_and_deposit<Share, Currency>(
     self: &mut RoyaltyPool<Share, Currency>,
-    value: u64,
+    root: &AccumulatorRoot,
 ) {
+    let value = balance::settled_funds_value<Currency>(root, object::id(self).to_address());
+    assert!(value > 0, ENoSettledFunds);
     let balance = hikida::redeem_balance<Currency>(&mut self.id, value);
     self.deposit(balance);
 }

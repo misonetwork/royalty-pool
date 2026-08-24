@@ -16,6 +16,7 @@ use royalty_pool::pool::{
 use royalty_pool::stake::{Self, Stake, StakeCreatedEvent, StakeDestroyedEvent};
 use std::type_name;
 use std::unit_test::{assert_eq, destroy};
+use sui::accumulator::AccumulatorRoot;
 use sui::balance;
 use sui::coin::{Self, Coin};
 use sui::event;
@@ -25,9 +26,9 @@ use sui::test_scenario::{Self, Scenario};
 
 // ALICE performs the cap-independent setup (standing in for the parent's own
 // cap-gated extension) and holds the stakes claimed against; STRANGER owns
-// nothing and proves the pool's genuinely permissionless funding paths
-// (`deposit`, `receive_and_deposit`, `redeem_and_deposit`) by sender, not
-// just by signature.
+// nothing and proves the pool's directly unit-testable permissionless funding
+// paths (`deposit` and `receive_and_deposit`) by sender, not just by signature.
+// The empty-snapshot sweep test below is also executed by STRANGER.
 const ALICE: address = @0xA1;
 const STRANGER: address = @0x51;
 
@@ -705,41 +706,19 @@ fun test_receive_and_deposit_recovers_funds_at_pool_address() {
     test_scenario::end(scenario);
 }
 
-// === Recovery paths: redeem_and_deposit ===
+// === Recovery paths: sweep_and_deposit ===
 
-#[test]
-/// A balance `send_funds`ed directly to the pool's address (crediting the
-/// pool's own funds accumulator) can be folded into the accumulator via
-/// `redeem_and_deposit`, recovering the funds for staker distribution.
-fun test_redeem_and_deposit_recovers_funds_at_pool_address() {
-    let mut scenario = test_scenario::begin(ALICE);
+#[test, expected_failure(abort_code = pool::ENoSettledFunds, location = pool)]
+fun sweep_and_deposit_aborts_when_no_funds_are_settled() {
+    let mut scenario = test_scenario::begin(@0x0);
+    sui::accumulator::create_for_testing(scenario.ctx());
     let pool_id = create_pool(&mut scenario);
 
-    scenario.next_tx(ALICE);
-    let mut s = new_stake(&mut scenario, 100);
+    scenario.next_tx(STRANGER);
     let mut pool = take_pool(&scenario, pool_id);
-    pool.register_stake(&mut s);
-    test_scenario::return_shared(pool);
-
-    // Royalty payer (or a confused user) sends a balance straight to the
-    // pool's address instead of the parent's.
-    scenario.next_tx(ALICE);
-    balance::create_for_testing<TEST_CURRENCY>(500).send_funds(pool_id.to_address());
-
-    // Anyone can recover by calling redeem_and_deposit on the pool.
-    scenario.next_tx(ALICE);
-    let mut pool = take_pool(&scenario, pool_id);
-    pool.redeem_and_deposit(500);
-    assert!(pool.balance().value() == 500);
-
-    let reward = pool.claim_rewards(&mut s);
-    assert!(reward.value() == 500);
-    pool.unregister_stake(&mut s);
-    test_scenario::return_shared(pool);
-
-    balance::destroy_for_testing(stake::destroy(s));
-    balance::destroy_for_testing(reward);
-    test_scenario::end(scenario);
+    let root = scenario.take_shared<AccumulatorRoot>();
+    pool.sweep_and_deposit(&root);
+    abort
 }
 
 // === View accessors ===
@@ -1000,14 +979,17 @@ fun test_full_lifecycle_emits_expected_events_with_exact_payloads() {
 // === Permissionless funding, proven by sender ===
 
 #[test]
-/// The pool's funding paths — `deposit`, `receive_and_deposit`,
-/// `redeem_and_deposit` — are permissionless by construction: they take
+/// The pool's directly testable funding paths — `deposit` and
+/// `receive_and_deposit` — are permissionless by construction: they take
 /// `&mut RoyaltyPool` (shared) and need no capability. Proven here by a
 /// STRANGER sender who owns nothing (no cap, no stake, nothing from ALICE's
-/// setup) successfully funding the pool three different ways, each landing
-/// with ALICE's registered stake as the sole beneficiary.
-fun test_stranger_funds_pool_every_way_with_no_capability() {
-    let mut scenario = test_scenario::begin(ALICE);
+/// setup), with ALICE's registered stake as the sole beneficiary. The Move
+/// unit VM does not populate funded `AccumulatorRoot` reads, so the amountless
+/// sweep is covered by its empty-snapshot test and requires localnet coverage
+/// for a funded success case.
+fun stranger_funds_pool_without_capability() {
+    let mut scenario = test_scenario::begin(@0x0);
+    sui::accumulator::create_for_testing(scenario.ctx());
     let pool_id = create_pool(&mut scenario);
 
     scenario.next_tx(ALICE);
@@ -1035,22 +1017,11 @@ fun test_stranger_funds_pool_every_way_with_no_capability() {
     pool.receive_and_deposit(vector[ticket]);
     test_scenario::return_shared(pool);
 
-    // --- STRANGER, tx: `redeem_and_deposit` recovers funds sent to the
-    // pool's address via `send_funds` ---
-    scenario.next_tx(ALICE);
-    balance::create_for_testing<TEST_CURRENCY>(200).send_funds(pool_id.to_address());
-
-    scenario.next_tx(STRANGER);
-    let mut pool = take_pool(&scenario, pool_id);
-    pool.redeem_and_deposit(200);
-    assert_eq!(pool.balance().value(), 1_000);
-    test_scenario::return_shared(pool);
-
     // --- ALICE, tx: the registered stake collects every stranger-funded unit ---
     scenario.next_tx(ALICE);
     let mut pool = take_pool(&scenario, pool_id);
     let reward = pool.claim_rewards(&mut s);
-    assert_eq!(reward.value(), 1_000);
+    assert_eq!(reward.value(), 800);
     assert_eq!(pool.balance().value(), 0);
     pool.unregister_stake(&mut s);
     test_scenario::return_shared(pool);

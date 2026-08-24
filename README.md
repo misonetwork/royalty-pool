@@ -16,6 +16,19 @@ The derivation key encodes both type parameters, so a pool's address is determin
 
 That property is what lets payers deliver to a derived address before the pool exists — funds wait at an address only the correctly-typed, shared pool can ever claim, and folding them in is permissionless.
 
+Funds delivered as coin objects are folded with `receive_and_deposit`. Funds
+delivered through Sui's funds accumulator are folded with
+`sweep_and_deposit(pool, root)`: the function reads the pool's balance settled
+at the start of the current consensus commit, redeems that amount, and deposits
+it for stakers. Callers pass the immutable system `AccumulatorRoot` at `0xacc`;
+they do not calculate or supply an amount. The read returns at most `u64::MAX`,
+so excess value and funds arriving later in the commit remain for a later
+sweep. An empty sweep aborts with `ENoSettledFunds`.
+
+The Move unit-test VM does not populate funded accumulator snapshots. Unit
+tests cover the root wiring and empty-sweep error; funded sweep behavior must
+also be verified on localnet or a live network.
+
 ## License
 
 Apache-2.0

@@ -26,7 +26,7 @@ downstream plugin audits.
   Registration>` keyed by **Currency** `TypeName` (`stake.move:35`).
 - Funding: `deposit` (`pool.move:182`) from any caller, or permissionless
   recovery of address-delivered funds via `receive_and_deposit` /
-  `redeem_and_deposit` (`pool.move:205-222`). Both fold into the same
+  `sweep_and_deposit` (`pool.move:207-230`). Both fold into the same
   accumulator path.
 - Distribution: classic cumulative-index accumulator.
   `cumulative_reward_per_share += value · 10¹⁸ / staked_shares` on deposit
@@ -142,6 +142,14 @@ staker whose per-claim reward truncates to 0 eventually claims 1 full unit.
   **Disposition (2026-08-24):** accepted — an environmental assumption:
   `Share` must remain a `miso_share`-issued fixed-supply token; recorded here
   and in the misofm plugin audits.
+- **F6 (Informational): settled-balance sweeps are commit snapshots.**
+  `sweep_and_deposit` reads the pool-address balance as of the beginning of
+  the current consensus commit. Funds credited later in the commit remain for
+  a later sweep. The framework clamps an underlying u128 accumulator to
+  `u64::MAX`, so a larger balance is recovered across multiple commits. Empty
+  snapshots abort explicitly with `ENoSettledFunds`; competing cranks may race,
+  but accumulator redemption prevents overdrawing and transaction atomicity
+  rolls back any failed deposit.
 
 Checked and cleared — no finding:
 
@@ -181,8 +189,11 @@ Checked and cleared — no finding:
   can reach balance 0 with no stuck dust in the single-staker case.
 - `pending_rewards` matches the subsequent claim exactly and returns 0 for
   unregistered/foreign-pool stakes (`test_pending_rewards_*`).
-- Address-recovery paths fold real value and distribute it
-  (`test_receive_and_deposit_*`, `test_redeem_and_deposit_*`).
+- Coin-object recovery folds real value and distributes it
+  (`test_receive_and_deposit_*`). Empty settled-balance sweeps abort with
+  `ENoSettledFunds`. The Move unit VM does not populate funded
+  `AccumulatorRoot` reads, so a funded amountless sweep must be verified on
+  localnet or a live network.
 
 ## Verification
 
@@ -201,6 +212,6 @@ Checked and cleared — no finding:
   precision/no-lock argument.
 - Framework: `derived_object::claim` uniqueness; accumulator semantics of
   `send_funds`/`withdraw_funds_from_object`/`public_receive` (via `hikida`);
-  `type_name::with_defining_ids` stability. Framework rev per sibling
-  lockfiles: `b9149cbf`.
+  `type_name::with_defining_ids` stability. Framework rev pinned in
+  `Move.lock`: `06734f6`.
 - `hikida` `e88c6fa8` correctness (58 LOC, re-read: thin, correct wrappers).
