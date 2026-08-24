@@ -96,6 +96,9 @@ staker whose per-claim reward truncates to 0 eventually claims 1 full unit.
   `routed_stake.move:12-13`) and is called out in both misofm plugin audits.
   Stakes must stay address-owned or wrapped; the pool cannot enforce this
   itself.
+  **Disposition (2026-08-24):** accepted — a caller-custody obligation the
+  pool cannot enforce; now warned in the `stake.move` module doc and
+  documented in the `routed_stake` and misofm plugin audits.
 - **L2 (Low — caller obligation): one registration per (stake, Currency)
   makes registration order sticky.** `register_stake` rejects a second
   same-currency registration (`EAlreadyRegistered`, `pool.move:233`), and
@@ -106,12 +109,17 @@ staker whose per-claim reward truncates to 0 eventually claims 1 full unit.
   from the wrong pool — a griefer can at most force a claim-first detour by
   dust-funding their pool; they cannot trap the stake or redirect already-
   accrued rewards, which belong to the stake wherever it is registered.
+  **Disposition (2026-08-24):** accepted — recoverable by the stake holder
+  (claim, then unregister); a griefer can force at most a claim-first detour
+  and can neither trap the stake nor redirect accrued rewards.
 - **F3 (Informational): bounded dust lockup.** Two residues stay in the pool
   forever by design: per-deposit index remainder
   `value − rps·S/P < S/P ≤ 10¹³/10¹⁸ = 10⁻⁵` base units, and per-stake
   sub-base-unit exit residue forfeited at `unregister_stake`
   (documented at `pool.move:250-255`). Neither can ever reach one whole base
   unit per stake; not actionable.
+  **Disposition (2026-08-24):** accepted-by-design — both residues are bounded
+  below one base unit per stake by construction and are unreachable dust.
 - **F4 (Informational): deposits abort while `staked_shares == 0`, so
   pre-registration funding waits at the pool's address.** Deliberate
   (`ENoStakedShares`, `pool.move:186`): an unattributable deposit is
@@ -119,6 +127,9 @@ staker whose per-claim reward truncates to 0 eventually claims 1 full unit.
   address — which only the correctly-typed shared pool can ever claim — and
   are folded later by the permissionless recovery paths. Locked-then-
   recoverable, never lost, never redirected.
+  **Disposition (2026-08-24):** accepted-by-design — rejecting unattributable
+  deposits is deliberate; address-delivered funds are locked-then-
+  permissionlessly-recoverable, never lost or redirected.
 - **F5 (Informational — integration constraint): the precision argument
   assumes `staked_shares ≤ 10¹³`.** It holds because `Share` is a
   `miso_share`-issued token (fixed 10¹³ supply, 6 decimals, freeze-proof).
@@ -128,6 +139,9 @@ staker whose per-claim reward truncates to 0 eventually claims 1 full unit.
   principal. The misofm plugin audits already record "do not reuse
   `RoyaltyPool` with other share types"; restated here as the package's one
   environmental assumption.
+  **Disposition (2026-08-24):** accepted — an environmental assumption:
+  `Share` must remain a `miso_share`-issued fixed-supply token; recorded here
+  and in the misofm plugin audits.
 
 Checked and cleared — no finding:
 

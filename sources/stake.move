@@ -12,6 +12,12 @@
 /// `TypeName`. The stake cannot be destroyed while any registrations remain.
 /// Pool registrations are mutated by `royalty_pool::pool` through the
 /// package-private accessors below.
+///
+/// Custody warning: `pool::claim_rewards` pays accrued rewards to the
+/// *caller*, and `Stake` is `key + store` — a bare shared stake (or one
+/// wrapped in a shared object that hands out `&mut`) is drainable by anyone.
+/// Stakes must stay address-owned, or wrapped by a contract that pins the
+/// reward route (e.g. `routed_stake`); the pool cannot enforce this itself.
 module royalty_pool::stake;
 
 use std::type_name::TypeName;
